@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph Private Observability</title>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            resize: vertical;
+        }
+
+        button {
+            padding: 6px 12px;
+            border: none;
+            background: #2563eb;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 6px;
+            font-size: 13px;
+        }
+
+        button:hover {
+            background: #1e4ed8;
+        }
+
+        /* ===== Node Styling ===== */
+
+        .node {
+            margin-bottom: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #eef2ff;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .node-badges {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-weight: normal;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .badge-latency {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-token {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .node-content {
+            display: none;
+            padding: 14px;
+            background: #fafafa;
+            font-size: 14px;  /* normal readable size */
+        }
+
+        .node-section {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        /* Different left border colors */
+
+        .section-start {
+            border-left: 4px solid #000000;   /* Blue */
+        }
+
+        .section-tokens {
+            border-left: 4px solid #7c3aed;   /* Purple */
+        }
+
+        .section-input {
+            border-left: 4px solid #2563eb;   /* Blue */
+        }
+
+        .section-output {
+            border-left: 4px solid #059669;   /* Green */
+        }
+
+        /* Section title styling */
+        .node-section h4 {
+            margin: 0 0 6px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .node-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #111827;
+        }
+
+        .code-block {
+            background: #f8fafc;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        .code-output {
+            background: #f0fdf4;
+        }
+
+        .error-box {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 8px 10px;
+            border-radius: 6px;
+            color: #991b1b;
+            font-size: 13px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .expand-controls {
+            margin-bottom: 8px;
+        }
+
+        .error {
+            color: red;
+        }
+
+        /* ===== Mobile Tweaks ===== */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .card {
+                padding: 14px;
+            }
+
+            .node-header {
+                font-size: 12px;
+            }
+
+            textarea {
+                font-size: 15px;
+            }
+
+            .node-badges {
+                flex-wrap: wrap;
+            }
+        }
+
+        .tokens-table {
+            width: auto;
+            border-collapse: collapse;
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .tokens-table tr {
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .tokens-table tr:last-child {
+            border-bottom: none;
+        }
+
+        .token-key {
+            color: #6b7280;
+            padding: 6px 12px 6px 0;
+            text-align: left;
+        }
+
+        .token-value {
+            font-weight: 600;
+            text-align: right;
+            color: #111827;
+            padding: 6px 0;
+        }
+    </style>
+
+    <script>
+        function toggleNode(id) {
+            const el = document.getElementById(id);
+            el.style.display = el.style.display === "none" ? "block" : "none";
+        }
+
+        function expandAll() {
+            document.querySelectorAll(".node-content").forEach(el => {
+                el.style.display = "block";
+            });
+        }
+
+        function collapseAll() {
+            document.querySelectorAll(".node-content").forEach(el => {
+                el.style.display = "none";
+            });
+        }
+    </script>
+</head>
+<body>
+<div class="container">
+
+    <!-- Chat Window -->
+    <div class="card">
+        <form method="POST">
+            <textarea name="message" rows="3" placeholder="Ask something..." required></textarea>
+            <br><br>
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
+    {% if final_response %}
+
+    <!-- Final Response -->
+    <div class="card">
+        <h3>Final Response</h3>
+        <p>{{ final_response }}</p>
+    </div>
+
+    <!-- Run Summary -->
+    <div class="card">
+        <h3>
+            Run Summary 
+            <span style="font-weight: normal; font-size: 14px; white-space: nowrap;">
+                ({{ trace.run_id }})
+            </span>
+        </h3>
+
+        <div class="meta-grid">
+
+            <!-- Human readable start time -->
+            <div>
+                <strong>Start Time:</strong><br><br>
+                {{ trace.start_time }}
+            </div>
+
+            <!-- Formatted latency -->
+            <div>
+                <strong>Total Latency:</strong><br><br>
+                {{ "%.3f"|format(trace.total_latency) }} sec
+            </div>
+
+            <!-- Token breakdown -->
+            <div>
+                <strong>Total Tokens:</strong>
+                <table class="tokens-table">
+                    <tbody>
+                    {% for key, value in trace.total_tokens.items() %}
+                        <tr>
+                            <td class="token-key">{{ key | replace('_', ' ') | title }}</td>
+                            <td class="token-value">{{ value }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Traces -->
+    <div class="card">
+        <h3>Node Traces</h3>
+
+        <div class="expand-controls">
+            <button onclick="expandAll()">Expand All</button>
+            <button onclick="collapseAll()">Collapse All</button>
+        </div>
+
+        {% for node in trace.nodes %}
+        <div class="node">
+
+            <!-- Header -->
+            <div class="node-header" onclick="toggleNode('node{{ loop.index }}')">
+                <div><strong>{{ node.node }}</strong></div>
+
+                <div class="node-badges">
+                    {% if node.tokens %}
+                        {% if node.tokens.total_tokens %}
+                            <span class="badge badge-token">
+                                {{ node.tokens.total_tokens }} tokens
+                            </span>
+                        {% else %}
+                            <span class="badge badge-token">
+                                {{ node.tokens }} tokens
+                            </span>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if node.error %}
+                        <span class="badge badge-error">Error</span>
+                    {% endif %}
+
+                    <span class="badge badge-latency">
+                        {{ "%.3f"|format(node.latency or 0) }}s
+                    </span>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="node-content" id="node{{ loop.index }}">
+
+                <!-- Start -->
+                <div class="node-section section-start">
+                    <div class="section-title">Start</div>
+                    {{ node.start }}
+                </div>
+
+                <!-- Tokens -->
+                {% if node.tokens and node.tokens is mapping %}
+                <div class="node-section section-tokens">
+                    <div class="section-title">Tokens</div>
+
+                    <table class="tokens-table">
+                        <tbody>
+                        {% for key, value in node.tokens.items() %}
+                            <tr>
+                                <td class="token-key">{{ key | replace('_', ' ') | title }}</td>
+                                <td class="token-value">{{ value }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <!-- Input -->
+                <div class="node-section section-input">
+                    <div class="section-title">Input</div>
+                    <div class="code-block">{{ node.input }}</div>
+                </div>
+
+                <!-- Output -->
+                <div class="node-section section-output">
+                    <div class="section-title">Output</div>
+                    <div class="code-block code-output">{{ node.output }}</div>
+                </div>
+
+                <!-- Error -->
+                {% if node.error %}
+                <div class="node-section">
+                    <div class="section-title">Error</div>
+                    <div class="error-box">
+                        {{ node.error }}
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+
+</div>
+</body>
+</html>
