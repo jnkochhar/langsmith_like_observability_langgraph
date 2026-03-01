@@ -30,6 +30,7 @@ def index():
     return render_template(
         "index.html",
         trace=trace_json,
+        user_input=user_input if trace_json else None,
         final_response=final_response
     )
 
