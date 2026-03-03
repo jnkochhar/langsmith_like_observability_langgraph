@@ -60,6 +60,7 @@ class RunCollector:
         result = {
             "run_id": self.run_id,
             "start_time": self.start_time.strftime("%d %b %Y, %I:%M:%S.") + f"{self.start_time.microsecond // 1000:03d} " + self.start_time.strftime("%p"),
+            "start_timestamp": self.start_time.isoformat(),
             "nodes": self.nodes,
             "total_tokens": self.total_tokens,
             "total_latency": self.total_latency,
